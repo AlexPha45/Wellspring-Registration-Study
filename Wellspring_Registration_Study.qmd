@@ -1,0 +1,515 @@
+---
+title: "New Registration System: What We’re Seeing So Far"
+author: Alexandros Phardis
+format:
+  revealjs:
+    theme: simple
+    slide-number: true
+    fontsize: 2.75em
+    width: 1600
+    height: 900
+    margin: 0.1
+    pdf-max-pages-per-slide: 1
+    self-contained: true
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,      # Hide code
+  include = FALSE,   # Do not include output
+  warning = FALSE,   # Suppress warnings
+  message = FALSE,   # Suppress messages
+  results = "hide"   # Hide printed output
+)
+
+# Note: the options above are to hide the code chunk in the slides and to not include the code in the slides
+# There are many other options you can use to customize which parts of the code are run / displayed, 
+# as well as how the output is displayed. 
+# You can learn more at https://quarto.org/docs/computations/execution-options.html
+
+```
+
+```{r load-data}
+
+# setup
+library(tidyverse)
+library(dplyr)
+library(stringr)
+
+# Load data we need to load the data, but don't want to display it in our slides
+# The code chunk options at in the curly brackets above specif
+data_patient_members <- read_csv("Member_Background.csv")
+data_attendance_records <- read_csv("Service_Deliveries.csv")
+
+
+## Parse members data
+## Types of cancer - convert to set of indicator variables for different types of cancer (don't include ones which are too rare)
+data_patient_members <- data_patient_members |>
+   mutate(lung = str_detect(types_of_cancer, "Lung"),
+         breast = str_detect(types_of_cancer, "Breast"),
+         brain = str_detect(types_of_cancer, "Brain"),
+         leukemia = str_detect(types_of_cancer, "Leukemia"),
+         prostate = str_detect(types_of_cancer, "Prostate"),
+         colorectal = str_detect(types_of_cancer, "Colorectal"),
+         pancreatic = str_detect(types_of_cancer, "Pancreatic"),
+         lymphoma_non_hodgkins = str_detect(types_of_cancer, "Lymphoma, Non-hodgkins"),
+         liver = str_detect(types_of_cancer, "Liver"),
+         multiple_myeloma = str_detect(types_of_cancer, "Multiple Myeloma"),
+         bladder = str_detect(types_of_cancer, "Bladder"),
+         cervical = str_detect(types_of_cancer, "Cervical"),
+         esophagus = str_detect(types_of_cancer, "Esophagus"),
+         gallbladder_and_bile_duct = str_detect(types_of_cancer, "Gallbladder and Bile Duct"),
+         head_and_neck = str_detect(types_of_cancer, "Head and Neck"),
+         kidney = str_detect(types_of_cancer, "Kidney"),
+         lymphoma_hodgkins = str_detect(types_of_cancer, "Lymphoma, Hodgkins"),
+         ovarian = str_detect(types_of_cancer, "Ovarian"),
+         skin = str_detect(types_of_cancer, "Skin"),
+         stomach = str_detect(types_of_cancer, "Stomach"),
+         testicular = str_detect(types_of_cancer, "Testicular"),
+         thyroid = str_detect(types_of_cancer, "Thyroid"),
+         cervical = str_detect(types_of_cancer, "Cervical"),
+         other = str_detect(types_of_cancer, "Other"))
+
+
+## Impairments - convert to set of indicator variables for different types of impairment (don't include ones which are too rare)
+data_patient_members <- data_patient_members |>
+  mutate(visual = str_detect(i_have_the_following_impairment, "visual"),
+         cognitive = str_detect(i_have_the_following_impairment, "cognitive"),
+         limited_mobility = str_detect(i_have_the_following_impairment, "mobility"),
+         none_of_the_above = str_detect(i_have_the_following_impairment, "None of the above"),
+         other = str_detect(i_have_the_following_impairment, "other"),
+         speech = str_detect(i_have_the_following_impairment, "speech"),
+         hearing = str_detect(i_have_the_following_impairment, "hearing")) 
+
+## Program interests: Split into boolean indicators for different categories
+data_patient_members <- data_patient_members |>
+  mutate(therapeutic_arts = str_detect(program_interest, "Therapeutic Arts"),
+         educational_and_self_developoment = str_detect(program_interest, "Educational & Self-Development"),
+         symptom_management = str_detect(program_interest, "Symptom Management"),
+         social_events = str_detect(program_interest, "Social / Events"),
+         financiaL_and_workplace_strategies = str_detect(program_interest, "Financial & Workplace Strategies"),
+         exercise_and_movement = str_detect(program_interest, "Exercise & Movement"),
+         individual_and_group_support = str_detect(program_interest, "Individual & Group Support")) |>
+  mutate(num_program_interests = therapeutic_arts + educational_and_self_developoment + symptom_management + social_events + financiaL_and_workplace_strategies + exercise_and_movement + individual_and_group_support)
+
+## How did you hear about wellspring: Split into booleans
+data_patient_members <- data_patient_members |>
+  mutate(word_of_mouth = str_detect(how_have_you_heard_of_wellspring, "Word of mouth"),
+         flyer = str_detect(how_have_you_heard_of_wellspring, "flyer"),
+         wellspring_member = str_detect(how_have_you_heard_of_wellspring, "Member"),
+         wellspring_member = str_detect(how_have_you_heard_of_wellspring, "Volunteer"),
+         doctor = str_detect(how_have_you_heard_of_wellspring, "Doctor"),
+         hospital = str_detect(how_have_you_heard_of_wellspring, "hospital"),
+         hospital = str_detect(how_have_you_heard_of_wellspring, "healthcare"),
+         tv = str_detect(how_have_you_heard_of_wellspring, "television"),
+         website = str_detect(how_have_you_heard_of_wellspring, "Website"),
+         family = str_detect(how_have_you_heard_of_wellspring, "Family"),
+         social_media = str_detect(how_have_you_heard_of_wellspring, "Social Media"),
+         other = str_detect(how_have_you_heard_of_wellspring, "Other"))
+
+```
+
+```{r}
+# Question 1 stuff
+reg_change <- c(2024, 3)  # experimented with different dates
+
+# remove members with missing data
+q1_member_bg <- data_patient_members |>
+  filter(!is.na(member_start_year) &
+           !is.na(member_start_month) &
+           !is.na(number_of_present_service_deliveries) &
+           !is.na(number_of_absent_service_deliveries)
+  )
+
+# remove members who registered in March (reason: waiting for change to stabilize)
+q1_member_bg <- q1_member_bg |>
+  filter(member_start_year != reg_change[1] | member_start_month != reg_change[2])
+
+# calculate total number of people removed and the percentage of data removed
+n_removed <- nrow(data_patient_members) - nrow(q1_member_bg)
+p_removed <- n_removed / nrow(data_patient_members)
+
+# drop unnecessary columns
+q1_member_bg <- q1_member_bg |>
+  select(member_start_year,
+         member_start_month,
+         number_of_present_service_deliveries,
+         number_of_absent_service_deliveries
+  )
+
+# classifying members by whether they started before or after reg change
+q1_member_bg <- q1_member_bg |>
+  mutate(reg_time = case_when(
+    member_start_year < reg_change[1] | (member_start_year == reg_change[1] & member_start_month < reg_change[2]) ~ "Before Change",  # Feb 2024 and before
+    member_start_year > reg_change[1] | (member_start_year == reg_change[1] & member_start_month > reg_change[2]) ~ "After Change"  # Apr 2024 and after
+  )) |>
+  mutate(prop_attended_events = number_of_present_service_deliveries /
+    (number_of_present_service_deliveries +
+      number_of_absent_service_deliveries)  # calculate the proportion of events each member attended
+  )
+
+q1_group_mean_prop <- q1_member_bg |>
+  group_by(reg_time) |>  # group by whether members regd before or after march 2024
+  summarize(mean_prop_attended_events = mean(prop_attended_events)) |>  # calculate the mean for each group
+  ungroup()
+```
+
+```{r}
+# Should we restrict attention to services delivered to ppl who joined in the last two years?
+data_attendance_records |> 
+  dim()  # Down to 96,000 from 102,000
+
+# What members register for the most events?
+data_attendance_records |> 
+  group_by(member_id) |>
+  summarise(n=n()) |>
+  arrange(desc(n))
+
+high_attendance <- data_attendance_records |> 
+  filter(member_id == "003ON000007rtwbYAA")
+
+data_patient_members |> filter(member_id == "003ON000007rtwbYAA")
+
+# What is range of registration dates for members in first table
+data_patient_members |> 
+  group_by(member_start_year) |>
+  summarise(n=n()) |>
+  arrange(desc(n))
+
+
+# To do
+# 1. Keep only members who joined in 2023 & 2024
+# 2. Keep only rows in attendance table for members in the members table
+# 3. Check that this runs on Jupyterhub
+```
+
+::: {.slide background-image="wellspring_intro.jpg" background-size="cover"}
+## Introduction
+
+-   **Background:** Wellspring recently updated its registration system on March 4, 2024, with the goal of streamlining the registration process and promoting member engagement. Our project aims to assess whether this change achieved its intended outcomes.
+
+-   **Objectives:** We analyzed data before and after the system change to answer three key questions:
+
+    1.  Did the registration change impact members’ attendance rates?
+
+    2.  Did the change influence LGBTQ+ member engagement?
+
+    3.  Can we use a linear model to predict registration trends over time?
+
+-   **Audience:** This analysis is intended for Wellspring administrators and stakeholders to inform future decisions about registration systems and member outreach.
+:::
+
+::: {.slide background-image="wellspring_intro.jpg" background-size="cover"}
+## Introduction
+
+-   **Data Sources:** We used two primary datasets provided by Wellspring:
+
+    -   **Member Background Table:** Contains demographic information, including LGBTQ+ self-identification and registration dates.
+
+    -   **Service Deliveries Table:** Includes attendance records for program sessions.
+
+-   **Scope:** We focused on members who registered in 2023 or 2024, classifying them based on whether they joined before or after the system change.
+:::
+
+## Data Summary
+
+-   **Data Preparation:** We cleaned the data by removing members with missing registration dates or other key information. This ensured our analysis was based on complete and accurate records.
+
+-   **Key Variables:**
+
+    -   **Attendance Rate:** Calculated as the proportion of events each member attended out of the total events they signed up for.
+
+    -   **Engagement:** Measured as the number of relevant sign-ups per month.
+
+    -   **LGBTQ+ Identification:** A binary indicator provided in the data to identify LGBTQ+ members.
+
+## Data Summary
+
+-   **Population Overview:**
+
+    -   **Total Members Analyzed:** 4,829
+
+    -   **Before the Change (March 4, 2024):** 2,922 members, including 8 who identified as LGBTQ+.
+
+    -   **After the Change:** 1,907 members, including 21 who identified as LGBTQ+.
+
+-   **Initial Observations:** The proportion of LGBTQ+ members increased slightly after the change, but the sample size remained small, warranting cautious interpretation.
+
+## Research Question 1: Attendance Rates
+
+-   **Question:** Did the registration system change impact the mean attendance rate of members?
+
+-   **Hypotheses:**
+
+    -   **Null Hypothesis (H₀):** The mean attendance rate is the same before and after the change.
+
+    -   **Alternate Hypothesis (H₁):** The mean attendance rate differs between the two periods.
+
+## Research Question 1: Visualization
+
+-   **Method:** Used two-sample hypothesis test to compare mean attendance rates before and after the change. The test was done with 10,000 resamples to ensure robustness.
+
+<!-- -->
+
+-   **Visualization:** A bar chart illustrating the proportion of events attended before and after the change, showing a noticeable decline post-change.
+
+## Research Question 1: Visualization
+
+```{r, include=TRUE}
+# reorder to make "Before Change" appear first on the graph
+q1_group_mean_prop$reg_time <- factor(q1_group_mean_prop$reg_time, levels = c("Before Change", "After Change"))
+q1_member_bg$reg_time <- factor(q1_member_bg$reg_time, levels = c("Before Change", "After Change"))
+
+# making bar plot
+q1_plot <- ggplot(q1_group_mean_prop, aes(x = reg_time, y = mean_prop_attended_events)) +
+  geom_col(colour = "black", fill = "tomato", width = 0.5) +
+  ylim(0, 1) +
+  labs(title = "Attendance Rates Before vs. After Change",x = "Time of Registration", y = "Proportion of Events Attended")
+
+q1_plot
+```
+
+```{r, include=TRUE}
+
+q1_test_statistic <- q1_group_mean_prop$mean_prop_attended_events[1] -
+  q1_group_mean_prop$mean_prop_attended_events[2]
+
+n_samples <- 10000  # lower this if process is taking a while
+mean_prop_attend_diffs <- rep(NA, n_samples)
+
+for (i in 1:n_samples) {
+  # create a sample with shuffled labels
+  one_sample <- q1_member_bg |>
+    select(reg_time, prop_attended_events)
+  one_sample$reg_time <- sample(one_sample$reg_time, replace = FALSE)
+
+  # summarize the sample to get mean proportion
+  one_sample <- one_sample |>
+    group_by(reg_time) |>
+    summarise(mean_prop_attended_events = mean(prop_attended_events))
+
+  # calculate difference between the two groups
+  mean_prop_attend_diff <- one_sample$mean_prop_attended_events[1] -
+    one_sample$mean_prop_attended_events[2]
+
+  # put result into vector
+  mean_prop_attend_diffs[i] <- mean_prop_attend_diff
+}
+
+p_value <- sum(abs(mean_prop_attend_diffs) >= abs(q1_test_statistic)) / n_samples
+p_value
+```
+
+## Research Question 1: Results/Interpretation
+
+-   **Key Finding:** The p-value is less than 0.0001, leading us to reject the null hypothesis. This is very strong evidence that the difference in attendance rates before and after the system change is significant.
+
+-   **Observation:** Attendance rates were higher for members who registered before the update vs. those who registered after.
+
+-   **Interpretation:** The registration system change is correlated with a decrease in attendance rates. However, correlation does not imply causation.
+
+-   **Recommendation:** Further investigation to identify other factors that may have contributed to the decline, such as program awareness or external events.
+
+## Research Question 2: LGBTQ+ Engagement
+
+-   **Question:** Did the registration system change affect LGBTQ+ members’ engagement?
+
+-   **Hypotheses:**
+
+    -   **Null Hypothesis (H₀):** The proportion of LGBTQ+ members is the same before and after the change.
+
+    -   **Alternate Hypothesis (H₁):** The proportion of LGBTQ+ members differs between the two periods.
+
+## Research Question 2: Visualization
+
+-   **Method:** We used a two-sample hypothesis test using a permutation method to compare LGBTQ+ representation before and after the registration change on March 4, 2024.
+
+    -   Group labels ("Before" and "After") were randomly shuffled 1,000 times.
+
+    -   For each shuffle, we calculated the difference in LGBTQ+ proportions.
+
+    -   This created a null distribution against which to compare the observed difference.
+
+    -   We used the results to generate a 95% confidence interval and compute a p-value.
+
+## Research Question 2: Visualization
+
+```{r, include=TRUE}
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+set.seed(1234) 
+data_recent <- data_patient_members %>%
+  filter(member_start_year %in% c(2023, 2024)) %>%
+  mutate(
+    registration_period = ifelse(
+      member_start_year == 2024 & member_start_month >= 3,
+      "After",
+      "Before"
+    )
+  )
+# Calculate observed difference in proportions
+observed_diff <- data_recent %>%
+  group_by(registration_period) %>%
+  summarise(prop_lgbtq = mean(i_identify_as_lgbtq, na.rm = TRUE)) %>%
+  summarise(diff = diff(prop_lgbtq)) %>%
+  pull(diff)
+
+# Permutation test setup
+n_trials <- 1000
+test_stat_simulations <- rep(NA, n_trials)
+
+for(i in 1:n_trials){
+  sim_data <- data_recent %>%
+    mutate(registration_period = sample(registration_period, replace = FALSE))
+
+  sim_diff <- sim_data %>%
+    group_by(registration_period) %>%
+    summarise(prop_lgbtq = mean(i_identify_as_lgbtq, na.rm = TRUE), .groups = "drop") %>%
+    summarise(diff = diff(prop_lgbtq)) %>%
+    pull(diff)
+
+  test_stat_simulations[i] <- sim_diff
+}
+
+# Compute p-value
+p_value <- mean(abs(test_stat_simulations) >= abs(observed_diff))
+
+# Summarize LGBTQ+ proportions
+lgbtq_summary <- data_recent %>%
+  group_by(registration_period) %>%
+  summarise(
+    total_members = n(),
+    lgbtq_members = sum(i_identify_as_lgbtq, na.rm = TRUE),
+    proportion_lgbtq = lgbtq_members / total_members
+  ) %>%
+  mutate(
+    registration_period = factor(registration_period, levels = c("Before", "After"))
+  )
+
+# Calculate p-value from your simulation
+p_value <- mean(abs(test_stat_simulations) >= abs(observed_diff))
+p_label <- paste0("Difference not statistically significant (p = ", round(p_value, 3), ")")
+
+# Plot
+ggplot(lgbtq_summary, aes(x = registration_period, y = proportion_lgbtq, fill = registration_period)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(proportion_lgbtq * 100, 1), "%")),
+            vjust = -0.7, size = 5) +
+  labs(
+    title = "Proportion of LGBTQ+ Members Before vs After Registration Change",
+    subtitle = p_label,
+    x = "Registration Period",
+    y = "Proportion Identifying as LGBTQ+"
+  ) +
+  scale_fill_manual(values = c("Before" = "#91c6e2", "After" = "#ee6c4d")) +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1), limits = c(0, 0.012)) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 12),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 12)
+  )
+```
+
+## Research Question 2: Results/Interpretation
+
+-   **Key Finding:** The number of LGBTQ+ members increased from 8 (before) to 21 (after), but this difference was not statistically significant (p-value \> 0.05).
+
+-   **Observation:** The proportion of LGBTQ+ members remained small in both periods, suggesting limited overall impact.
+
+-   **Interpretation:** While there was a nominal increase in LGBTQ+ sign-ups, the trend was inconsistent and likely due to natural fluctuations rather than the system change.
+
+-   **Recommendation:** Targeted outreach efforts may be necessary to more effectively engage LGBTQ+ members.
+
+## Research Question 3: Registration Prediction
+
+-   **Question:** Can we predict registration trends using a linear model?
+
+-   **Method:** We constructed a linear regression model to analyze the relationship between time and the number of new registrations.
+
+## Research Question 3: Visualization
+
+-   **Visualization:** A scatter plot titled "Monthly Registrations Before vs. After Registration Change," with separate lines for before (blue) and after (red) the change. Both lines exhibit a downward trend.
+
+## Research Question 3: Visualization
+
+```{r, include=TRUE}
+# Add a numeric month index for modeling
+data_monthly <- data_recent %>%
+  group_by(registration_period, member_start_year, member_start_month) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  mutate(
+    month_date = as.Date(paste(member_start_year, member_start_month, "01", sep = "-")),
+    month_index = (member_start_year - 2023) * 12 + member_start_month
+  )
+
+# Fit linear models using the month index
+model_before <- lm(count ~ month_index,
+                   data = filter(data_monthly, registration_period == "Before"))
+
+model_after <- lm(count ~ month_index,
+                  data = filter(data_monthly, registration_period == "After"))
+
+# Plot
+q3plot <- ggplot(data_monthly,
+                 aes(x = month_date,
+                     y = count,
+                     color = registration_period)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_vline(xintercept = as.Date("2024-03-01"), linetype = "dashed", color = "gray40") +
+  labs(
+    title = "Monthly Registrations Before vs. After Registration Change",
+    x = "Month",
+    y = "Number of Registrations"
+  )
+
+q3plot
+
+```
+
+## Research Question 3: Results/Interpretation
+
+-   **Key Finding:** The model revealed a negative slope for both periods, indicating a decline in registrations over time. The post-change period had lower absolute counts.
+
+-   **Observation:** The system change did not reverse the downward trend in registrations.
+
+-   **Interpretation:** The registration system update alone is insufficient to predict or improve registration trends. Other factors, such as marketing or seasonal effects, may play a larger role.
+
+-   **Recommendation:** Explore additional variables (e.g., outreach campaigns) to enhance predictive accuracy.
+
+## Limitations
+
+-   **Correlation vs. Causation:** While we observed correlations, we cannot definitively attribute changes in attendance or engagement to the system update without further experimental design.
+
+-   **Small Sample Sizes:** Subgroups like LGBTQ+ members had limited representation, which may affect the reliability of conclusions.
+
+-   **Data Gaps:** Additional variables (e.g., member feedback, program quality) could provide deeper insights.
+
+-   **Future Work:** Longitudinal studies and expanded data collection are recommended to address these limitations.
+
+## Conclusion
+
+-   **Summary of Findings:**
+
+    1.  Attendance rates decreased after the registration system change.
+
+    2.  LGBTQ+ engagement showed no significant improvement.
+
+    3.  Registrations continued to decline post-change, with no evidence of reversal.
+
+-   **Implications:** The system change had a limited impact on member engagement.
+
+-   **Next Steps:** Focus on targeted outreach, monitor underrepresented groups, and investigate external factors influencing participation.
+
+## References/Acknowledgements
+
+**Data Source:**
+
+-   Wellspring’s Member Background and Service Deliveries tables.
+
+-   Wellspring facebook background image
